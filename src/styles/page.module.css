@@ -1,0 +1,46 @@
+/* src/app/page.module.css */
+.title {
+    font-family: var(--font-heading);
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.subtitle {
+    font-size: 1rem;
+    color: var(--text-light);
+    margin-top: 8px;
+    margin-bottom: 30px;
+}
+
+.cardGrid {
+    display: grid;
+    /* Cria colunas responsivas: elas tentam ter 350px, mas se ajustam */
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 25px;
+}
+
+.card {
+    background-color: var(--surface-color);
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px 0 var(--shadow-color);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px 0 var(--shadow-color);
+}
+
+.card h2 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin-bottom: 15px;
+}
+
+.card p {
+    color: var(--text-light);
+    line-height: 1.6;
+}
