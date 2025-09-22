@@ -55,8 +55,25 @@ const Sidebar = () => {
 
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.logoContainer}>
-        <Image src="/DIAVI_logo.png" alt="Logo DIAVI" width={150} height={45} priority />
+      <div className={styles.logoContainer}
+           style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Logo DIAVI */}
+        <Image
+          src="/DIAVI_logo.png"
+          alt="Logo DIAVI"
+          width={150}
+          height={45}
+          priority
+        />
+        {/* Logo CPA (arquivo em public/CPA logo.jpg) */}
+        <Image
+          src="/CPA%20logo.jpg"
+          alt="Logo CPA"
+          width={120}
+          height={45}
+          priority
+          style={{ objectFit: 'contain' }}
+        />
       </div>
 
       <nav className={styles.nav}>
@@ -171,6 +188,3 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-
-
-

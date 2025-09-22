@@ -24,6 +24,10 @@ function sanitizeList(list = []) {
     .filter(v => v && v !== 'todos' && !(typeof v === 'string' && /^qual\b/i.test(v)));
 }
 
+function uniqueSorted(arr = []) {
+  return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'pt-BR'));
+}
+
 function getQHeadersFromRows2023(rows) {
   if (!rows || !rows.length) return [];
   const any = rows.find(r => r && typeof r === 'object') || {};
@@ -35,6 +39,28 @@ function getQHeadersFromRows2023(rows) {
     .filter(Boolean);
   const max = nums.length ? Math.max(...nums) : 45;
   return Array.from({ length: max }, (_, i) => `${i + 1})`);
+}
+
+/* ================== helpers de identificação p/ contagem ================== */
+function getIdKeyForYear(year, sampleRow) {
+  if (year === '2025') {
+    if (sampleRow && 'Nome de usuário' in sampleRow) return 'Nome de usuário';
+  }
+  // 2023 ou fallback: usa timestamp se existir
+  if (sampleRow && 'Carimbo de data/hora' in sampleRow) return 'Carimbo de data/hora';
+  return null;
+}
+
+function countUniqueRespondentsByYear(year, rows) {
+  if (!rows || !rows.length) return 0;
+  const key = getIdKeyForYear(year, rows[0]);
+  if (!key) return rows.length;
+  const set = new Set();
+  for (const r of rows) {
+    const v = r?.[key];
+    if (v != null && v !== '') set.add(String(v));
+  }
+  return set.size || rows.length;
 }
 
 /* ============ helpers para boxplot (Apex) ============ */
@@ -226,7 +252,7 @@ function aggregateFromRows2025(rows, qHeadersFull) {
     boxplotDimRaw.push({ dimensao: dim, values: perRespondent });
   });
 
-  // ---- Médias por item e boxplot por item (Autoavaliação) ----
+  // Autoavaliação — médias/box por item
   const mediasItensAuto = [];
   const boxplotItensAutoRaw = [];
   dims['Autoavaliação Discente'].forEach((h, idx) => {
@@ -237,7 +263,6 @@ function aggregateFromRows2025(rows, qHeadersFull) {
     boxplotItensAutoRaw.push({ item, values: vals });
   });
 
-  // ---- Médias por item para as demais dimensões (NOVO) ----
   const mediasForHeaders = (hs, offset) => hs.map((h, idx) => {
     const vals = rows.map(r => toScoreVal(r[h])).filter(v => v != null);
     const media = vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : 0;
@@ -334,7 +359,7 @@ function aggregateFromRows2023(rows, qHeaders) {
     boxplotDimRaw.push({ dimensao: dim, values: perRespondent });
   });
 
-  // Auto
+  // Auto — médias/box por item
   const mediasItensAuto = [];
   const boxplotItensAutoRaw = [];
   dims['Autoavaliação Discente'].forEach(h => {
@@ -345,7 +370,6 @@ function aggregateFromRows2023(rows, qHeaders) {
     boxplotItensAutoRaw.push({ item, values: vals });
   });
 
-  // Demais dimensões (NOVO)
   const mediasForHeaders = (hs) => hs.map((h) => {
     const vals = rows.map(r => toVal(r[h])).filter(v => v != null);
     const media = vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : 0;
@@ -395,6 +419,7 @@ function aggregateFromRows2023(rows, qHeaders) {
 function computeBestWorstGroup(year, yearObj) {
   const rows = yearObj?.rows || [];
   if (!rows.length) return { labelType: year === '2025' ? 'Polo' : 'Curso', best: '—', worst: '—' };
+
   if (year === '2025') {
     const headers = yearObj.qHeadersFull || [];
     const groupKey = 'Qual o seu Polo de Vinculação?';
@@ -430,10 +455,13 @@ function computeBestWorstGroup(year, yearObj) {
     }
     return { labelType: 'Polo', best, worst };
   } else {
+    // === 2023: usa chave de curso dinâmica ===
+    const courseKey = rows[0]?.['Qual é o seu Curso?'] !== undefined ? 'Qual é o seu Curso?' : 'curso';
+
     const headers = getQHeadersFromRows2023(rows);
     const endInfra = Math.min(43, headers.length);
     const usedHeaders = headers.slice(0, endInfra);
-    const groupKey = 'curso';
+
     const toScore = (n) => {
       const v = Number(n);
       if (v === 5 || !Number.isFinite(v)) return null;
@@ -443,10 +471,11 @@ function computeBestWorstGroup(year, yearObj) {
       if (v === 1) return 1;
       return null;
     };
+
     const sums = new Map();
     rows.forEach(r => {
-      const g = r[groupKey];
-      if (!g || /^qual\b/i.test(g)) return;
+      const g = r[courseKey];
+      if (!g || (typeof g === 'string' && /^qual\b/i.test(g))) return;
       usedHeaders.forEach(h => {
         const v = toScore(r[h]);
         if (v == null) return;
@@ -456,6 +485,7 @@ function computeBestWorstGroup(year, yearObj) {
         sums.set(g, curr);
       });
     });
+
     let best = '—', worst = '—', bestAvg = -Infinity, worstAvg = Infinity;
     for (const [g, { sum, count }] of sums) {
       if (!count) continue;
@@ -465,6 +495,75 @@ function computeBestWorstGroup(year, yearObj) {
     }
     return { labelType: 'Curso', best, worst };
   }
+}
+
+/* ===== Helpers: dependência de filtros (curso -> disciplinas; polo -> disciplinas em 2025) ===== */
+function buildFilterOptionsDependent(initialDataByYear, filtersOptions, selectedFilters) {
+  const year = selectedFilters.ano;
+  const yearObj = initialDataByYear?.[year] || {};
+  const rows = yearObj.rows || [];
+
+  // bases “globais” mostradas quando nenhum curso/polo for escolhido
+  const anos = sanitizeList(filtersOptions.anos);
+  const dimensoes = sanitizeList(filtersOptions.dimensoes);
+
+  // detectores de chaves por ano
+  const courseKey2025 = 'Qual é o seu Curso?';
+  const poloKey2025 = 'Qual o seu Polo de Vinculação?';
+
+  const courseKey2023 = rows[0]?.['Qual é o seu Curso?'] !== undefined ? 'Qual é o seu Curso?' : 'curso';
+  const disciplinaKeys2023 = Object.keys(rows[0] || {}).filter(k => k.startsWith('Selecione para qual disciplina'));
+
+  // cursos e polos possíveis do ano atual (sem dependência)
+  const allCursos =
+    year === '2025'
+      ? uniqueSorted(rows.map(r => r?.[courseKey2025]))
+      : uniqueSorted(rows.map(r => r?.[courseKey2023]));
+  const allPolos =
+    year === '2025'
+      ? uniqueSorted(rows.map(r => r?.[poloKey2025]))
+      : []; // 2023 não tem polo
+
+  // agora filtramos as linhas pelas seleções já feitas para descobrir as disciplinas válidas
+  let rowsForDisc = rows;
+
+  if (year === '2025') {
+    if (selectedFilters.curso !== 'todos') {
+      rowsForDisc = rowsForDisc.filter(r => r?.[courseKey2025] === selectedFilters.curso);
+    }
+    if (selectedFilters.polo !== 'todos') {
+      rowsForDisc = rowsForDisc.filter(r => r?.[poloKey2025] === selectedFilters.polo);
+    }
+  } else {
+    if (selectedFilters.curso !== 'todos') {
+      rowsForDisc = rowsForDisc.filter(r => r?.[courseKey2023] === selectedFilters.curso);
+    }
+  }
+
+  // extrair disciplinas válidas das linhas filtradas
+  let disciplinasValidas = [];
+  if (year === '2025') {
+    const discCols = Object.keys(rows[0] || {}).filter(k => k.startsWith('Selecione para qual disciplina'));
+    disciplinasValidas = uniqueSorted(
+      rowsForDisc.flatMap(r => discCols.map(k => r?.[k]).filter(Boolean))
+    );
+  } else {
+    if (disciplinaKeys2023.length) {
+      disciplinasValidas = uniqueSorted(
+        rowsForDisc.flatMap(r => disciplinaKeys2023.map(k => r?.[k]).filter(Boolean))
+      );
+    } else {
+      disciplinasValidas = uniqueSorted(rowsForDisc.map(r => r?.disciplina));
+    }
+  }
+
+  return {
+    anos,
+    dimensoes,
+    polos: year === '2025' ? sanitizeList(allPolos) : [],
+    cursos: sanitizeList(allCursos),
+    disciplinas: sanitizeList(disciplinasValidas)
+  };
 }
 
 export default function EadDashboardClient({
@@ -488,6 +587,7 @@ export default function EadDashboardClient({
 
   const [dashboardData, setDashboardData] = useState(getDataForYear(selectedFilters.ano));
 
+  // quando troca o ano, ressincroniza dados e “zera” seleções inválidas
   useEffect(() => {
     const year = selectedFilters.ano;
     const yearData = getDataForYear(year);
@@ -512,17 +612,22 @@ export default function EadDashboardClient({
     setSelectedFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  // ===== filtros dependentes (curso/polo -> disciplinas) =====
   const filtersForUi = useMemo(() => {
-    const year = selectedFilters.ano;
-    const foYear = initialDataByYear?.[year]?.filtersOptionsYear || {};
-    return {
-      anos: sanitizeList(filtersOptions.anos),
-      dimensoes: sanitizeList(filtersOptions.dimensoes),
-      polos: year === '2023' ? [] : sanitizeList(foYear.polos),
-      cursos: sanitizeList(foYear.cursos),
-      disciplinas: sanitizeList(foYear.disciplinas)
-    };
-  }, [filtersOptions, initialDataByYear, selectedFilters.ano]);
+    const f = buildFilterOptionsDependent(initialDataByYear, filtersOptions, selectedFilters);
+    // se a disciplina selecionada não é mais válida, resetamos para 'todos'
+    if (selectedFilters.disciplina !== 'todos' && !f.disciplinas.includes(selectedFilters.disciplina)) {
+      setSelectedFilters(prev => ({ ...prev, disciplina: 'todos' }));
+    }
+    // idem para polo/curso caso deixem de existir após trocar o ano
+    if (selectedFilters.polo !== 'todos' && !f.polos.includes(selectedFilters.polo)) {
+      setSelectedFilters(prev => ({ ...prev, polo: 'todos' }));
+    }
+    if (selectedFilters.curso !== 'todos' && !f.cursos.includes(selectedFilters.curso)) {
+      setSelectedFilters(prev => ({ ...prev, curso: 'todos' }));
+    }
+    return f;
+  }, [initialDataByYear, filtersOptions, selectedFilters.ano, selectedFilters.curso, selectedFilters.polo]);
 
   const recalculated = useMemo(() => {
     const year = selectedFilters.ano;
@@ -545,7 +650,10 @@ export default function EadDashboardClient({
         mediasItensAtitude: [],
         mediasItensGestao: [],
         mediasItensProcesso: [],
-        mediasItensInfra: []
+        mediasItensInfra: [],
+        // campos p/ quantidades
+        filteredRows: [],
+        totalRespondentes: 0
       };
     }
 
@@ -554,6 +662,7 @@ export default function EadDashboardClient({
     const discSel = selectedFilters.disciplina;
 
     let filtered = rows;
+
     if (year === '2025') {
       if (cursoSel !== 'todos') filtered = filtered.filter(r => r['Qual é o seu Curso?'] === cursoSel);
       if (poloSel !== 'todos')  filtered = filtered.filter(r => r['Qual o seu Polo de Vinculação?'] === poloSel);
@@ -564,12 +673,34 @@ export default function EadDashboardClient({
         });
       }
       const qHeadersFull = yearObj?.qHeadersFull || [];
-      return aggregateFromRows2025(filtered, qHeadersFull);
+      const agg = aggregateFromRows2025(filtered, qHeadersFull);
+      return {
+        ...agg,
+        filteredRows: filtered,
+        totalRespondentes: countUniqueRespondentsByYear(year, filtered)
+      };
     } else {
-      if (cursoSel !== 'todos') filtered = filtered.filter(r => r.curso === cursoSel);
-      if (discSel !== 'todos')  filtered = filtered.filter(r => r.disciplina === discSel);
+      const courseKey = rows[0]?.['Qual é o seu Curso?'] !== undefined ? 'Qual é o seu Curso?' : 'curso';
+      const disciplinaKeys = Object.keys(rows[0] || {}).filter(k => k.startsWith('Selecione para qual disciplina'));
+
+      if (cursoSel !== 'todos') {
+        filtered = filtered.filter(r => r[courseKey] === cursoSel);
+      }
+      if (discSel !== 'todos') {
+        if (disciplinaKeys.length) {
+          filtered = filtered.filter(r => disciplinaKeys.some(k => r[k] === discSel));
+        } else {
+          filtered = filtered.filter(r => r.disciplina === discSel);
+        }
+      }
+
       const qHeaders = getQHeadersFromRows2023(filtered);
-      return aggregateFromRows2023(filtered, qHeaders);
+      const agg = aggregateFromRows2023(filtered, qHeaders);
+      return {
+        ...agg,
+        filteredRows: filtered,
+        totalRespondentes: countUniqueRespondentsByYear(year, filtered)
+      };
     }
   }, [initialDataByYear, dashboardData, selectedFilters]);
 
@@ -583,7 +714,6 @@ export default function EadDashboardClient({
   /* ---------- Dados p/ gráficos ---------- */
   const chartData = useMemo(() => {
     const mediasLabels = (recalculated.mediasPorDim || []).map(d => d.dimensao);
-    // força 2 casas
     const mediasValues = (recalculated.mediasPorDim || []).map(d => round2(d.media));
 
     const boxRaw = recalculated.boxplotDimRaw || [];
@@ -593,12 +723,11 @@ export default function EadDashboardClient({
     const boxplot_data = all.flatMap(o => o.boxplot_data);
     const outliers_data = all.flatMap(o => o.outliers_data);
 
-    // Autoavaliação — BOX PLOT POR ITEM (x numérico + ordenado)
+    // Autoavaliação — BOX PLOT POR ITEM
     const mediasItensLabels = (recalculated.mediasItensAuto || []).map(i => i.item);
     const mediasItensValues = (recalculated.mediasItensAuto || []).map(i => round2(i.media));
     const boxAutoAll = (recalculated.boxplotItensAutoRaw || [])
       .map(it => buildApexBoxplotFromValues(it.item, it.values, true));
-    // ordena por x numérico para garantir alinhamento 1..N
     boxAutoAll.sort((a, b) => {
       const ax = Number(a.boxplot_data?.[0]?.x ?? 0);
       const bx = Number(b.boxplot_data?.[0]?.x ?? 0);
@@ -607,7 +736,6 @@ export default function EadDashboardClient({
     const boxplot_auto_data = boxAutoAll.flatMap(o => o.boxplot_data);
     const outliers_auto_data = boxAutoAll.flatMap(o => o.outliers_data);
 
-    // NOVO: médias por item nas demais abas
     const mapMedias = (arr=[]) => ({
       labels: arr.map(i => i.item),
       datasets: [{ label: 'Média', data: arr.map(i => round2(i.media)), backgroundColor: 'rgba(40, 143, 180, 0.7)' }]
@@ -671,7 +799,7 @@ export default function EadDashboardClient({
   const dimensoesOptions = {
     layout: { padding: { top: 25 } },
     plugins: {
-      legend: { display: false }, // sem legenda padrão
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: (context) => {
@@ -709,11 +837,11 @@ export default function EadDashboardClient({
     }
   };
 
-  // opções comuns p/ “Proporções por item” (0–100) — SEM LEGENDA + 2 casas + título no tooltip = pergunta
+  // opções comuns p/ “Proporções por item” (0–100)
   const proporcoesItensOptions = {
     layout: { padding: { top: 25 } },
     plugins: {
-      legend: { display: false }, // tira a legenda em cima
+      legend: { display: false },
       tooltip: {
         callbacks: {
           title: (ti) => {
@@ -741,7 +869,7 @@ export default function EadDashboardClient({
     scales: { y: { max: 100 } }
   };
 
-  // opções para médias por item (0–4) — tooltip mostra a pergunta
+  // opções para médias por item (0–4)
   const mediasItensOptions = {
     plugins: {
       legend: { display: false },
@@ -766,45 +894,53 @@ export default function EadDashboardClient({
   const gridDimensoes = {
     display: 'grid',
     gridTemplateColumns: '1.8fr 1fr',
-    gridAutoRows: 'minmax(300px, auto)',
+    gridAutoRows: 'minmax(360px, auto)',
     gap: '16px',
     alignItems: 'stretch'
   };
-  const leftBig = { gridColumn: '1 / 2', gridRow: '1 / span 2', height: 666 };
-  const rightTop = { gridColumn: '2 / 3', gridRow: '1', height: 300 };
-  const rightBottom = { gridColumn: '2 / 3', gridRow: '2', height: 350 };
+  const leftBig = { gridColumn: '1 / 2', gridRow: '1 / span 2', height: 780 };
+  const rightTop = { gridColumn: '2 / 3', gridRow: '1', height: 360 };
+  const rightBottom = { gridColumn: '2 / 3', gridRow: '2', height: 420 };
 
   /* ====== LAYOUT ABA "AUTOAVALIAÇÃO" ====== */
   const gridAuto = {
     display: 'grid',
     gridTemplateColumns: '1fr',
-    gridTemplateRows: '300px 330px 300px',
+    gridTemplateRows: '360px 380px 360px',
     gap: '12px'
   };
-  const autoTopFull    = { gridColumn: '1 / -1', gridRow: '1', height: 300 };
-  const autoBoxFull    = { gridColumn: '1 / -1', gridRow: '2', height: 330 };
-  const autoMediasFull = { gridColumn: '1 / -1', gridRow: '3', height: 300 };
+  const autoTopFull    = { gridColumn: '1 / -1', gridRow: '1', height: 360 };
+  const autoBoxFull    = { gridColumn: '1 / -1', gridRow: '2', height: 380 };
+  const autoMediasFull = { gridColumn: '1 / -1', gridRow: '3', height: 360 };
 
   /* ====== LAYOUT para as demais abas (2 linhas) ====== */
   const gridTwoRows = {
     display: 'grid',
     gridTemplateColumns: '1fr',
-    gridTemplateRows: '300px 300px',
+    gridTemplateRows: '360px 360px',
     gap: '12px'
   };
-  const topRow = { gridColumn: '1 / -1', gridRow: '1', height: 300 };
-  const bottomRow = { gridColumn: '1 / -1', gridRow: '2', height: 300 };
+  const topRow = { gridColumn: '1 / -1', gridRow: '1', height: 360 };
+  const bottomRow = { gridColumn: '1 / -1', gridRow: '2', height: 360 };
 
   return (
     <>
       <div className={styles.statsGrid}>
-        <StatCard title="Total de Respondentes" value={dashboardData?.summary?.total_respostas?.[0] ?? '...'} icon={<Users />} />
+        <StatCard
+          title="Total de Respondentes"
+          value={recalculated?.totalRespondentes ?? (dashboardData?.summary?.total_respostas?.[0] ?? '...')}
+          icon={<Users />}
+        />
         <StatCard title={`${bestWorst.labelType} mais bem avaliado`} value={truncateText(bestWorst.best) ?? '—'} icon={<TrendingUp />} />
         <StatCard title={`${bestWorst.labelType} menos bem avaliado`} value={truncateText(bestWorst.worst) ?? '—'} icon={<TrendingDown />} />
       </div>
 
       <div style={{ marginTop: '1rem', marginBottom: '0.75rem' }}>
-        <EadFilters filters={filtersForUi} selectedFilters={selectedFilters} onFilterChange={handleFilterChange} />
+        <EadFilters
+          filters={filtersForUi}
+          selectedFilters={selectedFilters}
+          onFilterChange={handleFilterChange}
+        />
       </div>
 
       <div>
@@ -854,7 +990,7 @@ export default function EadDashboardClient({
                 <ActivityChart
                   chartData={chartData.autoavaliacao}
                   title={`Proporções de Respostas por Item - Autoavaliação Discente (${selectedFilters.ano})`}
-                  customOptions={proporcoesItensOptions} // SEM legenda + 2 casas + tooltip título = pergunta
+                  customOptions={proporcoesItensOptions}
                 />
               </div>
 
@@ -883,7 +1019,7 @@ export default function EadDashboardClient({
                 <ActivityChart
                   chartData={chartData.acaoDocenteAtitude}
                   title={`Proporções de Respostas por Item - Atitude Profissional (${selectedFilters.ano})`}
-                  customOptions={proporcoesItensOptions} // remove legenda + 2 casas + tooltip com pergunta
+                  customOptions={proporcoesItensOptions}
                 />
               </div>
               <div className={styles.chartContainer} style={bottomRow}>
@@ -902,7 +1038,7 @@ export default function EadDashboardClient({
                 <ActivityChart
                   chartData={chartData.acaoDocenteGestao}
                   title={`Proporções de Respostas por Item - Gestão Didática (${selectedFilters.ano})`}
-                  customOptions={proporcoesItensOptions} // corrige tooltip p/ mostrar pergunta e 2 casas
+                  customOptions={proporcoesItensOptions}
                 />
               </div>
               <div className={styles.chartContainer} style={bottomRow}>
@@ -921,7 +1057,7 @@ export default function EadDashboardClient({
                 <ActivityChart
                   chartData={chartData.acaoDocenteProcesso}
                   title={`Proporções de Respostas por Item - Processo Avaliativo (${selectedFilters.ano})`}
-                  customOptions={proporcoesItensOptions} // 2 casas + pergunta no tooltip + sem legenda
+                  customOptions={proporcoesItensOptions}
                 />
               </div>
               <div className={styles.chartContainer} style={bottomRow}>
@@ -940,7 +1076,7 @@ export default function EadDashboardClient({
                 <ActivityChart
                   chartData={chartData.infraestruturaItens}
                   title={`Proporções de Respostas por Item - Instalações Físicas e Recursos de TI (${selectedFilters.ano})`}
-                  customOptions={proporcoesItensOptions} // 2 casas + pergunta no tooltip + sem legenda
+                  customOptions={proporcoesItensOptions}
                 />
               </div>
               <div className={styles.chartContainer} style={bottomRow}>

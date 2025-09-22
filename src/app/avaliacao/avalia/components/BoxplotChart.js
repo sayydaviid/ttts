@@ -1,14 +1,25 @@
-"use client";
+// src/app/avalia/components/BoxplotChart.js
 
-import React from "react";
-import dynamic from "next/dynamic";
+'use client';
 
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+import React from 'react';
+import dynamic from 'next/dynamic';
 
-/* Divide o rótulo em linhas semânticas de ~maxLen caracteres */
-function splitLines(label, maxLen = 18) {
+const Chart = dynamic(() => import('react-apexcharts'), { ssr: false });
+
+/* Divide o rótulo em linhas semânticas.
+   - Se vier com "\n", respeita a quebra enviada pelo pai (EadDashboardClient). */
+function splitLines(label, maxLen = 14) {
   if (!label) return [""];
-  const words = String(label).split(" ");
+  const txt = String(label).trim();
+
+  // 1) Se o pai já mandou quebras, respeita-as.
+  if (txt.includes('\n')) {
+    return txt.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+
+  // 2) (fallback) quebra por comprimento aproximado
+  const words = txt.split(" ");
   const lines = [];
   let line = "";
   for (const w of words) {
@@ -52,9 +63,9 @@ function inflateBoxY(y) {
   // clamp final
   wmin = Math.max(1.0, Math.min(wmin, 4.0));
   wmax = Math.max(1.0, Math.min(wmax, 4.0));
-  q1   = Math.max(1.0, Math.min(q1,   4.0));
-  med  = Math.max(1.0, Math.min(med,  4.0));
-  q3   = Math.max(1.0, Math.min(q3,   4.0));
+  q1 = Math.max(1.0, Math.min(q1, 4.0));
+  med = Math.max(1.0, Math.min(med, 4.0));
+  q3 = Math.max(1.0, Math.min(q3, 4.0));
 
   return [wmin, q1, med, q3, wmax];
 }
@@ -77,6 +88,7 @@ export default function BoxplotChart({ apiData, title }) {
   }));
 
   const categories = adjustedBoxData.map((d) => d.x);
+  // Mapeia a categoria textual para um X numérico contínuo (1..N)
   const categoryMap = categories.reduce((acc, c, i) => ((acc[c] = i + 1), acc), {});
 
   // Bounds (whiskers) com dados ajustados
@@ -105,7 +117,7 @@ export default function BoxplotChart({ apiData, title }) {
       return v < b.lower || v > b.upper;
     })
     .map((p) => ({
-      x: categoryMap[p.x],
+      x: categoryMap[p.x], // Usa o mapeamento numérico para o X
       y: p.outliers ?? p.y,
       fillColor: getColorForValue(p.outliers ?? p.y, minOut, maxOut),
     }));
@@ -114,7 +126,7 @@ export default function BoxplotChart({ apiData, title }) {
     {
       name: "Boxplot",
       type: "boxPlot",
-      data: adjustedBoxData.map((d) => ({ x: categoryMap[d.x], y: d.y })),
+      data: adjustedBoxData.map((d) => ({ x: categoryMap[d.x], y: d.y })), // Usa o mapeamento numérico para o X
     },
     { name: "Outliers", type: "scatter", data: coloredOutliers },
   ];
@@ -122,19 +134,17 @@ export default function BoxplotChart({ apiData, title }) {
   // === RÓTULOS MULTILINHA POR ANOTAÇÕES (sem sobreposição) ===
   const splitAll = categories.map((c) => splitLines(c, 14));
   const maxLines = Math.max(...splitAll.map((ls) => ls.length));
-  const center = (categories.length - 1) / 2;
-  const stepX = 15;
-  const lineH = 13;
-  const baseOffsetY = 18;
+  const lineH = 13;       // Altura de cada linha
+  const baseOffsetY = 18; // Offset base para a primeira linha
 
   const labelAnnotations = [];
   categories.forEach((cat, i) => {
     const lines = splitAll[i];
     lines.forEach((text, li) => {
       labelAnnotations.push({
-        x: i + 1,
+        x: i + 1, // 'x' = posição numérica do item (1..N)
         x2: i + 1,
-        y: 1,
+        y: 1, // parte inferior do gráfico
         y2: 1,
         borderColor: "transparent",
         label: {
@@ -142,7 +152,6 @@ export default function BoxplotChart({ apiData, title }) {
           position: "bottom",
           orientation: "horizontal",
           offsetY: baseOffsetY + li * lineH,
-          offsetX: (i - center) * stepX,
           text,
           style: {
             background: "transparent",
@@ -181,7 +190,7 @@ export default function BoxplotChart({ apiData, title }) {
       min: 0.5,
       max: categories.length + 0.5,
       tickAmount: categories.length,
-      labels: { formatter: () => "", style: { colors: "transparent" } },
+      labels: { show: false }, // <<< esconde labels nativos (agora só aparecem as anotações)
       axisBorder: { show: false },
       axisTicks: { show: false },
       tooltip: { enabled: false },
@@ -195,7 +204,7 @@ export default function BoxplotChart({ apiData, title }) {
     },
     grid: {
       borderColor: "#e0e6ed",
-      padding: { left: 10, bottom: 20 + baseOffsetY + (maxLines - 1) * lineH + 8 },
+      padding: { left: 10, bottom: 20 + baseOffsetY + (maxLines) * lineH },
       xaxis: { lines: { show: false } },
       yaxis: { lines: { show: true } },
     },
@@ -207,8 +216,10 @@ export default function BoxplotChart({ apiData, title }) {
       custom: ({ seriesIndex, dataPointIndex, w }) => {
         if (seriesIndex === 0) {
           const stats = w.config.series[0].data[dataPointIndex].y;
+          const originalXValue = categories[dataPointIndex];
           return (
             `<div class="apexcharts-tooltip-box">` +
+            `<strong>Item: ${originalXValue}</strong><br>` +
             `Max: ${stats[4].toFixed(2)}<br>` +
             `Q3: ${stats[3].toFixed(2)}<br>` +
             `Mediana: ${stats[2].toFixed(2)}<br>` +
