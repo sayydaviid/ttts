@@ -45,11 +45,24 @@ export default function RelatorioEadClient({ filtersByYear, anosDisponiveis, ini
     const key = e?.target?.name;
     const value = e?.target?.value ?? '';
     const next = { ...selected, [key]: value };
-    if (key === 'ano') { next.curso = ''; next.polo = ''; }
+
+    // Se o filtro alterado for o 'ano'
+    if (key === 'ano') {
+      // Limpa a URL do PDF anterior e qualquer erro existente
+      setPdfUrl('');
+      setPdfError('');
+
+      // Reseta os filtros dependentes (lógica que já existia)
+      next.curso = '';
+      next.polo = '';
+    }
+
     if (key === 'curso' && !selected.ano) next.curso = '';
     if (key === 'polo' && !(selected.ano && yearDef.hasPolos)) next.polo = '';
+
     setSelected(next);
     syncURL(next);
+  }; syncURL(next);
   };
 
   /* =========================
