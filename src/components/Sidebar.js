@@ -1,5 +1,6 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+// -> Adicionado useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -16,7 +17,8 @@ const Sidebar = () => {
     presencialEnabled: false,
   };
 
-  const getInitialOpenMenus = () => {
+  // -> Função envolvida com useCallback para estabilizar sua referência
+  const getInitialOpenMenus = useCallback(() => {
     const initialState = { avaliacao: false, modalidade: false, dados: false };
     if (pathname.startsWith('/avaliacao/avalia') || pathname.startsWith('/avaliacao/ead')) {
       initialState.avaliacao = true;
@@ -25,10 +27,14 @@ const Sidebar = () => {
     if (pathname.startsWith('/avaliacao/avalia')) initialState.dados = true;
     if (pathname.startsWith('/avaliacao/minhaopiniao')) initialState.avaliacao = true;
     return initialState;
-  };
+  }, [pathname]); // A função só será recriada se o pathname mudar
 
   const [openMenus, setOpenMenus] = useState(getInitialOpenMenus);
-  useEffect(() => setOpenMenus(getInitialOpenMenus()), [pathname]);
+
+  // -> Dependência do useEffect atualizada para a função memoizada
+  useEffect(() => {
+    setOpenMenus(getInitialOpenMenus());
+  }, [getInitialOpenMenus]);
 
   const handleMenuClick = (menuName) =>
     setOpenMenus(prev => ({ ...prev, [menuName]: !prev[menuName] }));
@@ -52,7 +58,7 @@ const Sidebar = () => {
   const reportHref = pathname.startsWith('/avaliacao/ead')
     ? '/avaliacao/ead/relatorioEAD'
     : pathname.startsWith('/avaliacao/avalia')
-      ? '/avaliacao/avalia/relatorio'
+      ? '/avaliacao/ead/relatorioEAD'
       : pathname.startsWith('/avaliacao/minhaopiniao')
         ? '/avaliacao/minhaopiniao/relatorio'
         // fallback quando estiver na raiz /avaliacao ou outra subrota não coberta

@@ -5,6 +5,7 @@ import ActivityChart from '../components/ActivityChart';
 import styles from '../../../../styles/dados.module.css';
 // Ícones para os StatCards - você pode escolher outros se preferir
 import { BookOpen, Users, Building } from 'lucide-react';
+export const dynamic = 'force-dynamic';
 
 // --- FUNÇÃO PARA BUSCAR OS DADOS DA API R ---
 async function getDiscenteData() {

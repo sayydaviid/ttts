@@ -1,5 +1,6 @@
 import Header from '../components/Header';
 import DiscenteDashboardClient from './DiscenteDashboardClient';
+export const dynamic = 'force-dynamic';
 
 // busca inicial (inclui BOXLOT agora)
 async function getInitialData() {

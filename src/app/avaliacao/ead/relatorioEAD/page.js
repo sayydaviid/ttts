@@ -1,7 +1,11 @@
+// Adicione a importação do Suspense
+import { Suspense } from 'react';
 import path from 'path';
 import fs from 'fs';
 import Papa from 'papaparse';
 import styles from '../../../../styles/dados.module.css';
+// -> CORREÇÃO: O nome do arquivo importado deve ser o mesmo do arquivo real
+//    Ajustei de 'relatorio-eadead-client' para o nome que você usou no outro arquivo
 import RelatorioEadClient from './relatorio-eadead-client';
 
 const uniqSorted = (arr = []) => [...new Set((arr || []).filter(Boolean))].sort();
@@ -27,7 +31,7 @@ async function getFiltersByYear() {
 
   // 2023
   try {
-    const file2023 = path.join(baseDir, 'AUTOAVALIAÇÃO DOS CURSOS DE GRADUAÇÃO A DISTÂNCIA - 2023-4 .csv'); // (mantive o espaço antes de .csv)
+    const file2023 = path.join(baseDir, 'AUTOAVALIAÇÃO DOS CURSOS DE GRADUAÇÃO A DISTÂNCIA - 2023-4 .csv');
     const csv2023 = fs.readFileSync(file2023, 'utf8');
     const parsed2023 = Papa.parse(csv2023, { header: false, skipEmptyLines: true });
     const rows = parsed2023.data || [];
@@ -50,7 +54,8 @@ async function getFiltersByYear() {
   return { filtersByYear, anosDisponiveis };
 }
 
-export default async function Page() {
+// -> NOVO: Receba 'searchParams' como propriedade da página
+export default async function Page({ searchParams }) {
   const { filtersByYear, anosDisponiveis } = await getFiltersByYear();
 
   if (!anosDisponiveis.length) {
@@ -63,17 +68,27 @@ export default async function Page() {
       </div>
     );
   }
+  
+  // -> NOVO: Crie o objeto de seleção inicial a partir dos searchParams da URL
+  const initialSelected = {
+    ano: searchParams.ano || '',
+    curso: searchParams.curso || '',
+    polo: searchParams.polo || '',
+  };
 
   return (
     <div className={styles.mainContent}>
       <h1 className={styles.title}>Gerar Relatório — AVALIA EAD</h1>
-      <RelatorioEadClient
-        filtersByYear={filtersByYear}
-        anosDisponiveis={anosDisponiveis}
-        // nenhum valor inicial: todos vazios, você escolhe
-        initialSelected={{ ano: '', curso: '', polo: '' }}
-      />
-      {/* sem cards; só os filtros */}
+      
+      {/* -> CORREÇÃO: Envolva o componente cliente com <Suspense> */}
+      <Suspense fallback={<p>Carregando relatório...</p>}>
+        <RelatorioEadClient
+          filtersByYear={filtersByYear}
+          anosDisponiveis={anosDisponiveis}
+          // -> NOVO: Passe os valores iniciais lidos da URL
+          initialSelected={initialSelected}
+        />
+      </Suspense>
     </div>
   );
 }
