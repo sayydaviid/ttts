@@ -318,7 +318,7 @@ export default function RelatorioEadClient({ filtersByYear, anosDisponiveis, ini
           await drawImageContain(doc, boxplotInfo, margin, y, boxMaxW, boxMaxH, 'JPEG');
           y = addFigureCaption(y + boxMaxH + 12, 'Exemplo de Boxplot');
         } catch {}
-
+        
         // TÍTULO dinâmico
         doc.addPage(); doc.setFont('helvetica','bold');
         const campus = selected.polo || 'Campus/Polo';
@@ -506,7 +506,15 @@ export default function RelatorioEadClient({ filtersByYear, anosDisponiveis, ini
         // exporta e anexa questionário
         const baseBlob = doc.output('blob');
         const baseBytes = await baseBlob.arrayBuffer();
-        const finalBlob = await mergeWithExternalPdf(baseBytes, '/questionario_disc.pdf');
+      
+        let questionarioPdfPath = '/questionario_disc.pdf'; // Caminho padrão
+        if (selected.ano === '2025') {
+          questionarioPdfPath = '/questionario_disc_2025.pdf';
+        } else if (selected.ano === '2023') {
+          questionarioPdfPath = '/questionario_disc_2023.pdf';
+        }
+
+        const finalBlob = await mergeWithExternalPdf(baseBytes, questionarioPdfPath);
 
         const url = URL.createObjectURL(finalBlob);
         if (!cancelled) {
