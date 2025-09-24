@@ -62,7 +62,6 @@ export default function RelatorioEadClient({ filtersByYear, anosDisponiveis, ini
 
     setSelected(next);
     syncURL(next);
-  }; syncURL(next);
   };
 
   /* =========================
