@@ -319,10 +319,6 @@ export default function RelatorioEadClient({ filtersByYear, anosDisponiveis, ini
           y = addFigureCaption(y + boxMaxH + 12, 'Exemplo de Boxplot');
         } catch {}
 
-        const conviteLines = doc.splitTextToSize(convite, pageWidth - 2*margin);
-        if (y + conviteLines.length*14 > pageHeight - margin) { doc.addPage(); y = margin; }
-        doc.setFontSize(13); doc.text(conviteLines, margin, y); y += conviteLines.length*14 + 10;
-
         // TÍTULO dinâmico
         doc.addPage(); doc.setFont('helvetica','bold');
         const campus = selected.polo || 'Campus/Polo';
