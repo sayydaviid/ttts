@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import EadFilters from '../avalia/components/EadFilters';
 import ActivityChart from '../avalia/components/ActivityChart';
@@ -582,6 +583,11 @@ export default function EadDashboardClient({
     disciplina: 'todos'
   });
 
+  // <<< ADIÇÃO: detectar embed para PDF >>>
+  const searchParams = useSearchParams();
+  const embedForPdf = searchParams.get('embedForPdf') === '1';
+  // <<< FIM ADIÇÃO >>>
+
   const getDataForYear = (year) =>
     (initialDataByYear && initialDataByYear[year]) ? initialDataByYear[year] : initialData;
 
@@ -953,10 +959,10 @@ export default function EadDashboardClient({
         </div>
 
         <div className={styles.chartDisplayArea}>
-          {activeTab === 'dimensoes' && (
+          {(embedForPdf || activeTab === 'dimensoes') && (
             <div style={gridDimensoes}>
               {/* ESQUERDA (Proporções por Dimensão) */}
-              <div className={styles.chartContainer} style={leftBig}>
+              <div id="chart-dimensoes" className={styles.chartContainer} style={leftBig}>
                 <ActivityChart
                   chartData={chartData.dimensoes}
                   title={`Proporções de Respostas por Dimensão (${selectedFilters.ano})`}
@@ -965,7 +971,7 @@ export default function EadDashboardClient({
               </div>
 
               {/* DIREITA TOPO (Médias) */}
-              <div className={styles.chartContainer} style={rightTop}>
+              <div id="chart-medias-dimensoes" className={styles.chartContainer} style={rightTop}>
                 <ActivityChart
                   chartData={chartData.mediasDimensoes}
                   title={`Médias por Dimensão (${selectedFilters.ano})`}
@@ -974,7 +980,7 @@ export default function EadDashboardClient({
               </div>
 
               {/* DIREITA BASE (Boxplot por dimensão) */}
-              <div className={styles.chartContainer} style={rightBottom}>
+              <div id="chart-boxplot-dimensoes" className={styles.chartContainer} style={rightBottom}>
                 <BoxplotChart
                   apiData={chartData.boxplotDimApex}
                   title={`Boxplot das Médias por Dimensão (${selectedFilters.ano})`}
@@ -983,10 +989,10 @@ export default function EadDashboardClient({
             </div>
           )}
 
-          {activeTab === 'autoavaliacao' && (
+          {(embedForPdf || activeTab === 'autoavaliacao') && (
             <div style={gridAuto}>
               {/* 1) TOPO: Proporções por item */}
-              <div className={styles.chartContainer} style={autoTopFull}>
+              <div id="chart-proporcoes-autoav" className={styles.chartContainer} style={autoTopFull}>
                 <ActivityChart
                   chartData={chartData.autoavaliacao}
                   title={`Proporções de Respostas por Item - Autoavaliação Discente (${selectedFilters.ano})`}
@@ -995,7 +1001,7 @@ export default function EadDashboardClient({
               </div>
 
               {/* 2) MEIO: Boxplot por item */}
-              <div className={styles.chartContainer} style={autoBoxFull}>
+              <div id="chart-boxplot-autoav" className={styles.chartContainer} style={autoBoxFull}>
                 <BoxplotChart
                   apiData={chartData.boxplotAutoApex}
                   title="Boxplot Discente"
@@ -1003,7 +1009,7 @@ export default function EadDashboardClient({
               </div>
 
               {/* 3) BAIXO: Médias por item */}
-              <div className={styles.chartContainer} style={autoMediasFull}>
+              <div id="chart-medias-itens-autoav" className={styles.chartContainer} style={autoMediasFull}>
                 <ActivityChart
                   chartData={chartData.mediasItensAuto}
                   title={`Médias dos Itens relacionados à Autoavaliação Discente (${selectedFilters.ano})`}
@@ -1013,16 +1019,16 @@ export default function EadDashboardClient({
             </div>
           )}
 
-          {activeTab === 'atitude' && (
+          {(embedForPdf || activeTab === 'atitude') && (
             <div style={gridTwoRows}>
-              <div className={styles.chartContainer} style={topRow}>
+              <div id="chart-proporcoes-atitude" className={styles.chartContainer} style={topRow}>
                 <ActivityChart
                   chartData={chartData.acaoDocenteAtitude}
                   title={`Proporções de Respostas por Item - Atitude Profissional (${selectedFilters.ano})`}
                   customOptions={proporcoesItensOptions}
                 />
               </div>
-              <div className={styles.chartContainer} style={bottomRow}>
+              <div id="chart-medias-atitude" className={styles.chartContainer} style={bottomRow}>
                 <ActivityChart
                   chartData={chartData.mediasItensAtitude}
                   title={`Médias dos Itens relacionados à Atitude Profissional (Discente)`}
@@ -1032,16 +1038,16 @@ export default function EadDashboardClient({
             </div>
           )}
 
-          {activeTab === 'gestao' && (
+          {(embedForPdf || activeTab === 'gestao') && (
             <div style={gridTwoRows}>
-              <div className={styles.chartContainer} style={topRow}>
+              <div id="chart-proporcoes-gestao" className={styles.chartContainer} style={topRow}>
                 <ActivityChart
                   chartData={chartData.acaoDocenteGestao}
                   title={`Proporções de Respostas por Item - Gestão Didática (${selectedFilters.ano})`}
                   customOptions={proporcoesItensOptions}
                 />
               </div>
-              <div className={styles.chartContainer} style={bottomRow}>
+              <div id="chart-medias-gestao" className={styles.chartContainer} style={bottomRow}>
                 <ActivityChart
                   chartData={chartData.mediasItensGestao}
                   title={`Médias dos Itens relacionados à Gestão Didática (Discente)`}
@@ -1051,16 +1057,16 @@ export default function EadDashboardClient({
             </div>
           )}
 
-          {activeTab === 'processo' && (
+          {(embedForPdf || activeTab === 'processo') && (
             <div style={gridTwoRows}>
-              <div className={styles.chartContainer} style={topRow}>
+              <div id="chart-proporcoes-processo" className={styles.chartContainer} style={topRow}>
                 <ActivityChart
                   chartData={chartData.acaoDocenteProcesso}
                   title={`Proporções de Respostas por Item - Processo Avaliativo (${selectedFilters.ano})`}
                   customOptions={proporcoesItensOptions}
                 />
               </div>
-              <div className={styles.chartContainer} style={bottomRow}>
+              <div id="chart-medias-processo" className={styles.chartContainer} style={bottomRow}>
                 <ActivityChart
                   chartData={chartData.mediasItensProcesso}
                   title={`Médias dos Itens relacionados ao Processo Avaliativo (Discente)`}
@@ -1070,16 +1076,16 @@ export default function EadDashboardClient({
             </div>
           )}
 
-          {activeTab === 'infraestrutura' && (
+          {(embedForPdf || activeTab === 'infraestrutura') && (
             <div style={gridTwoRows}>
-              <div className={styles.chartContainer} style={topRow}>
+              <div id="chart-proporcoes-infra" className={styles.chartContainer} style={topRow}>
                 <ActivityChart
                   chartData={chartData.infraestruturaItens}
                   title={`Proporções de Respostas por Item - Instalações Físicas e Recursos de TI (${selectedFilters.ano})`}
                   customOptions={proporcoesItensOptions}
                 />
               </div>
-              <div className={styles.chartContainer} style={bottomRow}>
+              <div id="chart-medias-infra" className={styles.chartContainer} style={bottomRow}>
                 <ActivityChart
                   chartData={chartData.mediasItensInfra}
                   title={`Médias dos Itens relacionados às Instalações Físicas e Recursos de TI (Discente)`}

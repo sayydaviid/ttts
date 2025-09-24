@@ -48,10 +48,15 @@ const Sidebar = () => {
     pathname.startsWith('/avaliacao/ead') ||
     pathname.startsWith('/avaliacao/minhaopiniao');
 
-  // Destino do relatório: se estiver em EAD, aponta para o relatorioEAD.js
+  // ===== CORREÇÃO: escolher destino de relatório por seção atual =====
   const reportHref = pathname.startsWith('/avaliacao/ead')
     ? '/avaliacao/ead/relatorioEAD'
-    : '/avaliacao/relatorio'; // ajuste se tiver outro caminho para presencial/minha opinião
+    : pathname.startsWith('/avaliacao/avalia')
+      ? '/avaliacao/avalia/relatorio'
+      : pathname.startsWith('/avaliacao/minhaopiniao')
+        ? '/avaliacao/minhaopiniao/relatorio'
+        // fallback quando estiver na raiz /avaliacao ou outra subrota não coberta
+        : '/avaliacao/ead/relatorioEAD';
 
   return (
     <aside className={styles.sidebar}>
