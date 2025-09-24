@@ -1,11 +1,12 @@
+// -> ADIÇÃO 1: Importar o Suspense
+import { Suspense } from 'react';
 import path from 'path';
 import fs from 'fs';
 import Papa from 'papaparse';
 
-import EadDashboardClient from './EadDashboardClient'; 
+import EadDashboardClient from './EadDashboardClient';
 import styles from '../../../styles/dados.module.css';
-import { Users, BarChart, HardDrive, BookOpen } from 'lucide-react'; 
-// >>> ADICIONADO IMPORT PARA OBTER OS NOMES DAS DIMENSÕES <<<
+import { Users, BarChart, HardDrive, BookOpen } from 'lucide-react';
 import { dimensionMapEad } from '../lib/questionMappingEad';
 
 // Função para ler e processar o arquivo CSV
@@ -19,7 +20,7 @@ async function getEadInitialData() {
 
     // --- 1. Calcular Dados para os Cards de Resumo ---
     const total_respondentes = new Set(data.map(row => row['Nome de usuário'])).size;
-    
+
     const countBy = (arr, key) => arr.reduce((acc, row) => {
         const value = row[key];
         if (value) {
@@ -439,7 +440,8 @@ async function getEadInitialData() {
 }
 
 // --- O COMPONENTE DA PÁGINA ---
-export default async function EadPage() {
+// -> ADIÇÃO 2: Receber { searchParams } como propriedade da página
+export default async function EadPage({ searchParams }) {
   const { summaryData, dimensoesData, filtersOptions, autoavaliacaoItensData, acaoDocenteAtitudeData, acaoDocenteGestaoData, acaoDocenteProcessoData, infraestruturaItensData, byYear, defaultYear } = await getEadInitialData();
 
   if (!summaryData || !dimensoesData || !filtersOptions) {
@@ -457,21 +459,24 @@ export default async function EadPage() {
     <div className={styles.mainContent}>
       <h1 className={styles.title}>Avaliação EAD</h1>
       
-      <EadDashboardClient
-        initialData={{
-            summary: summaryData,
-            dimensoes: dimensoesData,
-            autoavaliacaoItens: autoavaliacaoItensData,
-            acaoDocenteAtitude: acaoDocenteAtitudeData,
-            acaoDocenteGestao: acaoDocenteGestaoData,
-            acaoDocenteProcesso: acaoDocenteProcessoData,
-            infraestruturaItens: infraestruturaItensData,
-        }}
-        // >>> ADIÇÃO: entrega datasets por ano + ano padrão
-        initialDataByYear={byYear}
-        defaultYear={defaultYear}
-        filtersOptions={filtersOptions}
-      />
+      {/* -> ADIÇÃO 3: Envolver o componente cliente com o Suspense */}
+      <Suspense fallback={<div className={styles.loading}>Carregando dashboard...</div>}>
+        <EadDashboardClient
+          initialData={{
+              summary: summaryData,
+              dimensoes: dimensoesData,
+              autoavaliacaoItens: autoavaliacaoItensData,
+              acaoDocenteAtitude: acaoDocenteAtitudeData,
+              acaoDocenteGestao: acaoDocenteGestaoData,
+              acaoDocenteProcesso: acaoDocenteProcessoData,
+              infraestruturaItens: infraestruturaItensData,
+          }}
+          // >>> ADIÇÃO: entrega datasets por ano + ano padrão
+          initialDataByYear={byYear}
+          defaultYear={defaultYear}
+          filtersOptions={filtersOptions}
+        />
+      </Suspense>
     </div>
   );
 }
