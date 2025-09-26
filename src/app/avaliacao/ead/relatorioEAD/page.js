@@ -1,21 +1,21 @@
-// Adicione a importação do Suspense
+// src/app/avaliacao/ead/relatorioEAD/page.js
+
 import { Suspense } from 'react';
 import path from 'path';
 import fs from 'fs';
 import Papa from 'papaparse';
 import styles from '../../../../styles/dados.module.css';
-// -> CORREÇÃO: O nome do arquivo importado deve ser o mesmo do arquivo real
-//    Ajustei de 'relatorio-eadead-client' para o nome que você usou no outro arquivo
-import RelatorioEadClient from './relatorio-eadead-client';
+import RelatorioEadClient from './relatorio-eadead-client'; // Nome do componente corrigido para PascalCase
 
 const uniqSorted = (arr = []) => [...new Set((arr || []).filter(Boolean))].sort();
 
+// Função para buscar e processar os dados dos arquivos CSV
 async function getFiltersByYear() {
   const baseDir = path.join(process.cwd(), 'src', 'app', 'banco');
   const filtersByYear = {};
   const anos = new Set();
 
-  // 2025
+  // Processa dados de 2025
   try {
     const file2025 = path.join(baseDir, 'AUTOAVALIAÇÃO DOS CURSOS DE GRADUAÇÃO A DISTÂNCIA - 2025-2.csv');
     const csvData = fs.readFileSync(file2025, 'utf8');
@@ -26,10 +26,10 @@ async function getFiltersByYear() {
     filtersByYear['2025'] = { hasPolos: polos.length > 0, polos, cursos };
     anos.add('2025');
   } catch (e) {
-    console.warn('Aviso 2025:', e?.message);
+    console.warn('Aviso ao carregar dados de 2025:', e?.message);
   }
 
-  // 2023
+  // Processa dados de 2023
   try {
     const file2023 = path.join(baseDir, 'AUTOAVALIAÇÃO DOS CURSOS DE GRADUAÇÃO A DISTÂNCIA - 2023-4 .csv');
     const csv2023 = fs.readFileSync(file2023, 'utf8');
@@ -47,29 +47,26 @@ async function getFiltersByYear() {
       anos.add('2023');
     }
   } catch (e) {
-    console.warn('Aviso 2023:', e?.message);
+    console.warn('Aviso ao carregar dados de 2023:', e?.message);
   }
 
   const anosDisponiveis = [...anos].sort((a, b) => Number(b) - Number(a));
   return { filtersByYear, anosDisponiveis };
 }
 
-// -> NOVO: Receba 'searchParams' como propriedade da página
-export default async function Page({ searchParams }) {
+// NOVO COMPONENTE: Componente assíncrono para carregar dados e ler searchParams
+async function RelatorioLoader({ searchParams }) {
   const { filtersByYear, anosDisponiveis } = await getFiltersByYear();
 
   if (!anosDisponiveis.length) {
     return (
-      <div className={styles.mainContent}>
-        <h1 className={styles.title}>Gerar Relatório — AVALIA EAD</h1>
-        <p className={styles.errorMessage}>
-          Não foi possível carregar os filtros. Verifique os CSVs em <code>src/app/banco</code>.
-        </p>
-      </div>
+      <p className={styles.errorMessage}>
+        Não foi possível carregar os filtros. Verifique os arquivos CSV em <code>src/app/banco</code>.
+      </p>
     );
   }
-  
-  // -> NOVO: Crie o objeto de seleção inicial a partir dos searchParams da URL
+
+  // A leitura dos searchParams acontece aqui dentro
   const initialSelected = {
     ano: searchParams.ano || '',
     curso: searchParams.curso || '',
@@ -77,17 +74,24 @@ export default async function Page({ searchParams }) {
   };
 
   return (
+    <RelatorioEadClient
+      filtersByYear={filtersByYear}
+      anosDisponiveis={anosDisponiveis}
+      initialSelected={initialSelected}
+    />
+  );
+}
+
+
+// COMPONENTE PRINCIPAL DA PÁGINA: Agora ele apenas define a estrutura e o Suspense
+export default function Page({ searchParams }) {
+  return (
     <div className={styles.mainContent}>
       <h1 className={styles.title}>Gerar Relatório — AVALIA EAD</h1>
       
-      {/* -> CORREÇÃO: Envolva o componente cliente com <Suspense> */}
-      <Suspense fallback={<p>Carregando relatório...</p>}>
-        <RelatorioEadClient
-          filtersByYear={filtersByYear}
-          anosDisponiveis={anosDisponiveis}
-          // -> NOVO: Passe os valores iniciais lidos da URL
-          initialSelected={initialSelected}
-        />
+      <Suspense fallback={<p className={styles.loadingMessage}>Carregando interface do relatório...</p>}>
+        {/* O novo componente é chamado aqui, dentro do Suspense */}
+        <RelatorioLoader searchParams={searchParams} />
       </Suspense>
     </div>
   );
